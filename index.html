@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SustainOrchid - Sistem Inventaris</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Leaflet CSS & JS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- FontAwesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <!-- Library untuk Export PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  
+  <script>
+    tailwind.config = { theme: { extend: { colors: { orchid: { white: '#ffffff', teal: '#007e7a', cyan: '#00b0f0', light: '#3cb5e5' } } } } }
+  </script>
+
+  <style>
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .btn-active { background-color: #00b0f0; color: #ffffff; }
+    .btn-inactive { background-color: transparent; color: #ffffff; }
+    .btn-inactive:hover { background-color: #3cb5e5; }
+    #map { height: 350px; z-index: 10; }
+    .btn-add-data { display: none; } 
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #007e7a; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans flex flex-col">
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed top-5 right-5 z-[9999] flex flex-col gap-3"></div>
+
+  <!-- NAVBAR -->
+  <nav class="bg-orchid-teal text-orchid-white p-4 shadow-lg sticky top-0 z-40">
+    <div class="container mx-auto flex flex-col md:flex-row justify-between items-center">
+      <div class="text-2xl font-bold mb-4 md:mb-0 flex items-center gap-2">
+        <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,2C10,2 8,5.5 8,9C8,11.5 9.5,13.5 11,14.5C11,18 10,21 10,21H14C14,21 13,18 13,14.5C14.5,13.5 16,11.5 16,9C16,5.5 14,2 12,2ZM6,7C4,7 2,9 2,12C2,15 5.5,17 9,17C9,15 8.5,13 9,11C7,10 6,8.5 6,7ZM18,7C18,8.5 17,10 15,11C15.5,13 15,15 15,17C18.5,17 22,15 22,12C22,9 20,7 18,7Z"/>
+        </svg> SustainOrchid
+      </div>
+      
+      <div class="flex flex-wrap gap-2 w-full md:w-auto pb-2 md:pb-0 md:flex-grow md:justify-center">
+        <button onclick="openTab('dashboard')" id="btn-dashboard" class="px-4 py-2 rounded-md font-semibold transition btn-active flex-grow md:flex-grow-0 whitespace-nowrap">Dashboard</button>
+        <button onclick="openTab('katalog')" id="btn-katalog" class="px-4 py-2 rounded-md font-semibold transition btn-inactive flex-grow md:flex-grow-0 whitespace-nowrap">Katalog Spesies</button>
+        <button onclick="openTab('registrasi')" id="btn-registrasi" class="px-4 py-2 rounded-md font-semibold transition btn-inactive flex-grow md:flex-grow-0 whitespace-nowrap">Registrasi Individu</button>
+        <button onclick="openTab('log')" id="btn-log" class="px-4 py-2 rounded-md font-semibold transition btn-inactive flex-grow md:flex-grow-0 whitespace-nowrap">Log Mutasi</button>
+      </div>
+
+      <div class="mt-2 md:mt-0 flex items-center gap-3">
+        <span id="role-badge" class="hidden px-2 py-1 bg-yellow-400 text-teal-900 text-xs font-bold rounded"></span>
+        <button onclick="toggleLoginAction()" id="btn-login-nav" class="bg-white text-orchid-teal px-4 py-2 rounded-md font-bold shadow hover:bg-gray-100 transition whitespace-nowrap"><i class="fa-solid fa-sign-in-alt"></i> Login</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- CONTAINER -->
+  <div class="container mx-auto p-4 md:p-6 mt-4 flex-grow">
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50 hidden">
+      <div class="bg-orchid-white p-6 rounded-lg shadow-lg text-center">
+        <i class="fa-solid fa-spinner fa-spin text-4xl text-orchid-cyan mb-4"></i>
+        <p class="text-lg font-semibold text-orchid-teal">Memuat Data dari Database...</p>
+      </div>
+    </div>
+
+    <!-- DASHBOARD TAB -->
+    <div id="dashboard" class="tab-content active">
+      
+      <!-- CAROUSEL FOTO ANGGREK -->
+      <div class="relative w-full h-56 md:h-80 lg:h-[400px] rounded-xl overflow-hidden shadow-md mb-8 group bg-gray-900">
+        <div class="carousel-item absolute inset-0 transition-opacity duration-1000 opacity-100 z-10 cursor-pointer" onclick="openTab('katalog')">
+          <img src="Spathoglottisplicata.jpg" alt="Spathoglottis plicata" class="w-full h-full object-cover opacity-90">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8">
+            <h2 class="text-white text-2xl md:text-4xl font-bold drop-shadow-lg"><span class="italic">Spathoglottis plicata</span> (Anggrek Tanah)</h2>
+            <p class="text-gray-200 text-sm md:text-base mt-2"><i class="fa-solid fa-hand-pointer mr-1"></i> Klik untuk melihat detail di Katalog</p>
+          </div>
+        </div>
+        <div class="carousel-item absolute inset-0 transition-opacity duration-1000 opacity-0 z-0 cursor-pointer" onclick="openTab('katalog')">
+          <img src="Arundinagraminifolia.jpg" alt="Arundina graminifolia" class="w-full h-full object-cover opacity-90">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8">
+            <h2 class="text-white text-2xl md:text-4xl font-bold drop-shadow-lg"><span class="italic">Arundina graminifolia</span> (Anggrek Bambu)</h2>
+            <p class="text-gray-200 text-sm md:text-base mt-2"><i class="fa-solid fa-hand-pointer mr-1"></i> Klik untuk melihat detail di Katalog</p>
+          </div>
+        </div>
+        <div class="carousel-item absolute inset-0 transition-opacity duration-1000 opacity-0 z-0 cursor-pointer" onclick="openTab('katalog')">
+          <img src="Dendrobiumsagittatum.jpg" alt="Dendrobium sagittatum" class="w-full h-full object-cover opacity-90">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8">
+            <h2 class="text-white text-2xl md:text-4xl font-bold drop-shadow-lg"><span class="italic">Dendrobium sagittatum</span></h2>
+            <p class="text-gray-200 text-sm md:text-base mt-2"><i class="fa-solid fa-hand-pointer mr-1"></i> Klik untuk melihat detail di Katalog</p>
+          </div>
+        </div>
+        <button onclick="prevSlide(event)" class="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white p-3 md:p-4 rounded-full opacity-0 group-hover:opacity-100 transition duration-300 z-20"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+        <button onclick="nextSlide(event)" class="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white p-3 md:p-4 rounded-full opacity-0 group-hover:opacity-100 transition duration-300 z-20"><i class="fa-solid fa-chevron-right text-lg"></i></button>
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2 z-20">
+          <div class="carousel-dot w-3 h-3 rounded-full bg-white cursor-pointer transition-colors" onclick="goToSlide(0, event)"></div>
+          <div class="carousel-dot w-3 h-3 rounded-full bg-white/40 cursor-pointer transition-colors" onclick="goToSlide(1, event)"></div>
+          <div class="carousel-dot w-3 h-3 rounded-full bg-white/40 cursor-pointer transition-colors" onclick="goToSlide(2, event)"></div>
+        </div>
+      </div>
+
+      <h2 class="text-3xl font-bold text-orchid-teal mb-6">Dashboard</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-orchid-white p-6 rounded-xl shadow-md border-t-4 border-orchid-teal hover:shadow-lg transition">
+          <div class="text-sm text-gray-500 font-semibold uppercase">Tanaman Hidup</div>
+          <div class="text-4xl font-bold text-orchid-teal mt-2" id="dash-hidup">0 Individu</div>
+        </div>
+        <div class="bg-orchid-white p-6 rounded-xl shadow-md border-t-4 border-red-500 hover:shadow-lg transition">
+          <div class="text-sm text-gray-500 font-semibold uppercase">Tanaman Mati</div>
+          <div class="text-4xl font-bold text-gray-800 mt-2" id="dash-mati">0 Individu</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="bg-orchid-white p-6 rounded-xl shadow-md flex flex-col hover:shadow-lg transition">
+          <h3 class="text-lg font-bold text-orchid-teal mb-4 text-center">Jumlah Individu per Spesies</h3>
+          <div id="chartSpesiesContainer" class="relative flex-grow max-h-[350px] overflow-y-auto custom-scrollbar pr-2 space-y-6"></div>
+        </div>
+        <div class="bg-orchid-white p-6 rounded-xl shadow-md flex flex-col hover:shadow-lg transition">
+          <h3 class="text-lg font-bold text-orchid-teal mb-4 text-center">Tren Stok Bulanan</h3>
+          <div class="relative flex-grow min-h-[300px]"><canvas id="chartTransaksi"></canvas></div>
+        </div>
+      </div>
+
+      <div class="bg-orchid-white p-6 rounded-xl shadow-md w-full hover:shadow-lg transition">
+        <h3 class="text-lg font-bold text-orchid-teal mb-4"><i class="fa-solid fa-map-location-dot"></i> Peta Lokasi Penempatan</h3>
+        <div id="map" class="rounded-xl border border-gray-200"></div>
+      </div>
+    </div>
+
+    <!-- KATALOG TAB -->
+    <div id="katalog" class="tab-content">
+      <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h2 class="text-3xl font-bold text-orchid-teal">Katalog Spesies</h2>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="exportCSV('data-katalog', 'Katalog_Spesies')" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md shadow text-sm font-semibold transition flex items-center gap-2"><i class="fa-solid fa-file-csv"></i> CSV</button>
+          <button onclick="exportPDF('data-katalog', 'Katalog_Spesies')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md shadow text-sm font-semibold transition flex items-center gap-2"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+          <button id="btn-add-katalog" onclick="openAddModal('modalKatalog')" class="btn-add-data bg-orchid-cyan hover:bg-orchid-light text-white px-4 py-2 rounded-md shadow font-semibold transition items-center gap-2"><i class="fa-solid fa-plus"></i> Tambah Spesies</button>
+        </div>
+      </div>
+      <div class="bg-orchid-white rounded-xl shadow-md overflow-x-auto border border-gray-200">
+        <table id="data-katalog" class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-orchid-teal text-white">
+              <th class="p-3 border-b text-center w-12">No.</th>
+              <th class="p-3 border-b">ID Spesies</th>
+              <th class="p-3 border-b">Nama Ilmiah</th>
+              <th class="p-3 border-b">Habitat</th>
+              <th class="p-3 border-b w-1/3">Deskripsi</th>
+              <th class="p-3 border-b">Foto Referensi</th>
+              <th class="p-3 border-b text-center"></th>
+            </tr>
+          </thead>
+          <tbody id="table-katalog"></tbody>
+        </table>
+      </div>
+      <!-- Pagination Katalog -->
+      <div id="pagination-Katalog_Spesies" class="flex justify-between items-center mt-4 px-2"></div>
+    </div>
+
+    <!-- REGISTRASI TAB -->
+    <div id="registrasi" class="tab-content">
+      <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h2 class="text-3xl font-bold text-orchid-teal">Registrasi Individu</h2>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="exportCSV('data-registrasi', 'Registrasi_Individu')" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md shadow text-sm font-semibold transition flex items-center gap-2"><i class="fa-solid fa-file-csv"></i> CSV</button>
+          <button onclick="exportPDF('data-registrasi', 'Registrasi_Individu')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md shadow text-sm font-semibold transition flex items-center gap-2"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+          <button id="btn-add-registrasi" onclick="openAddModal('modalRegistrasi')" class="btn-add-data bg-orchid-cyan hover:bg-orchid-light text-white px-4 py-2 rounded-md shadow font-semibold transition items-center gap-2"><i class="fa-solid fa-plus"></i> Tambah Individu</button>
+        </div>
+      </div>
+      <div class="bg-orchid-white rounded-xl shadow-md overflow-x-auto border border-gray-200">
+        <table id="data-registrasi" class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-orchid-teal text-white">
+              <th class="p-3 border-b text-center w-12">No.</th>
+              <th class="p-3 border-b">Kode Individu</th>
+              <th class="p-3 border-b">ID Spesies</th>
+              <th class="p-3 border-b">Nama Spesies</th>
+              <th class="p-3 border-b">Tanggal Pengambilan</th>
+              <th class="p-3 border-b">Lokasi Pengambilan</th>
+              <th class="p-3 border-b">Lokasi Penempatan</th>
+              <th class="p-3 border-b">Status</th>
+              <th class="p-3 border-b text-center"></th>
+            </tr>
+          </thead>
+          <tbody id="table-registrasi"></tbody>
+        </table>
+      </div>
+      <!-- Pagination Registrasi -->
+      <div id="pagination-Registrasi_Individu" class="flex justify-between items-center mt-4 px-2"></div>
+    </div>
+
+    <!-- LOG MUTASI TAB DENGAN SIDEBAR FILTER -->
+    <div id="log" class="tab-content">
+      <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h2 class="text-3xl font-bold text-orchid-teal">Log Mutasi</h2>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="exportCSV('data-log', 'Log_Mutasi')" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md shadow text-sm font-semibold transition flex items-center gap-2"><i class="fa-solid fa-file-csv"></i> CSV</button>
+          <button onclick="exportPDF('data-log', 'Log_Mutasi')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md shadow text-sm font-semibold transition flex items-center gap-2"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+          <button id="btn-add-log" onclick="openAddModal('modalLog')" class="btn-add-data bg-orchid-cyan hover:bg-orchid-light text-white px-4 py-2 rounded-md shadow font-semibold transition items-center gap-2"><i class="fa-solid fa-plus"></i> Tambah Mutasi</button>
+        </div>
+      </div>
+
+      <!-- Container Split untuk Tabel dan Filter -->
+      <div class="flex flex-col lg:flex-row gap-6">
+        
+        <!-- Sidebar Filter Waktu -->
+        <div class="w-full lg:w-1/4 bg-orchid-white p-5 rounded-xl shadow-md border border-gray-200 flex flex-col h-fit sticky top-24">
+           <h3 class="text-lg font-bold text-orchid-teal mb-4"><i class="fa-solid fa-calendar-alt mr-2"></i> Filter Waktu</h3>
+           
+           <label class="text-sm font-semibold text-gray-600 mb-1">Pilih Tahun</label>
+           <select id="logYearFilter" onchange="applyLogFilter()" class="w-full p-2 border rounded-md mb-6 focus:ring-2 focus:ring-orchid-cyan outline-none font-semibold text-gray-700 bg-gray-50 cursor-pointer">
+             <!-- Pilihan tahun akan dimuat lewat JS -->
+           </select>
+           
+           <label class="text-sm font-semibold text-gray-600 mb-2">Pilih Bulan</label>
+           <div id="logMonthFilter" class="flex flex-col gap-1 max-h-64 lg:max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+             <!-- Tombol bulan akan dimuat lewat JS -->
+           </div>
+        </div>
+
+        <!-- Tabel Log Mutasi -->
+        <div class="w-full lg:w-3/4 flex flex-col">
+          <div class="bg-orchid-white rounded-xl shadow-md overflow-x-auto border border-gray-200">
+            <table id="data-log" class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-orchid-teal text-white">
+                  <th class="p-3 border-b text-center w-12">No.</th>
+                  <th class="p-3 border-b whitespace-nowrap">ID Transaksi</th>
+                  <th class="p-3 border-b">Tanggal</th>
+                  <th class="p-3 border-b">Aktivitas</th>
+                  <th class="p-3 border-b whitespace-nowrap">ID Spesies</th>
+                  <th class="p-3 border-b whitespace-nowrap">Kode Individu</th>
+                  <th class="p-3 border-b text-center">Jumlah</th>
+                  <th class="p-3 border-b w-1/4">Keterangan</th>
+                  <th class="p-3 border-b">PIC</th>
+                  <th class="p-3 border-b">Dokumentasi</th>
+                  <th class="p-3 border-b text-center"></th>
+                </tr>
+              </thead>
+              <tbody id="table-log"></tbody>
+            </table>
+          </div>
+          <!-- Pagination Log Mutasi -->
+          <div id="pagination-Log_Mutasi" class="flex justify-between items-center mt-4 px-2"></div>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- /Container -->
+
+  <!-- FOOTER LOGOS -->
+  <footer class="bg-white border-t mt-12 py-6 shadow-inner w-full mt-auto">
+    <div class="container mx-auto">
+      <div class="text-center text-sm text-gray-500 font-semibold mb-4 tracking-wider uppercase">Supported By</div>
+      <div class="flex flex-col md:flex-row justify-center items-center gap-6 md:gap-16">
+        <div class="flex flex-row items-center gap-4">
+          <img src="logoVALE.png" alt="Vale Logo" class="h-10 md:h-12 object-contain" onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Vale_logo.svg/512px-Vale_logo.svg.png';">
+          <span class="font-bold text-gray-700 text-sm md:text-lg">PT. Vale Indonesia Tbk.</span>
+        </div>
+        <div class="hidden md:block h-10 border-l-2 border-gray-300"></div>
+        <div class="flex flex-row items-center gap-4">
+          <img src="logoITB.png" alt="ITB Logo" class="h-12 md:h-16 object-contain" onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/id/thumb/9/95/Logo_Institut_Teknologi_Bandung.svg/1200px-Logo_Institut_Teknologi_Bandung.svg.png';">
+          <span class="font-bold text-gray-700 text-sm md:text-lg">Institut Teknologi Bandung</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== MODALS (FORM) ==================== -->
+  
+  <!-- MODAL KONFIRMASI HAPUS (Custom UI Pengganti Confirm bawaan) -->
+  <div id="custom-confirm" class="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[60] hidden">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm text-center transform scale-95 transition-transform duration-200" id="custom-confirm-box">
+      <div class="text-red-500 mb-4"><i class="fa-solid fa-circle-exclamation text-5xl"></i></div>
+      <h3 class="text-xl font-bold text-gray-800 mb-2">Konfirmasi Hapus</h3>
+      <p id="custom-confirm-msg" class="text-gray-600 mb-6 text-sm"></p>
+      <div class="flex justify-center gap-3">
+        <button onclick="closeConfirm()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-semibold transition">Batal</button>
+        <button id="custom-confirm-btn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 font-semibold transition">Hapus Data</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalLogin" class="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 hidden">
+    <div class="bg-orchid-white rounded-xl shadow-xl p-8 w-full max-w-sm">
+      <div class="flex justify-between items-center border-b pb-2 mb-4">
+        <h3 class="text-2xl font-bold text-orchid-teal"><i class="fa-solid fa-lock mr-2"></i> Login Area</h3>
+        <button onclick="closeModal('modalLogin')" class="text-gray-500 hover:text-red-500"><i class="fa-solid fa-times"></i></button>
+      </div>
+      <form onsubmit="handleLoginSubmit(event)" id="formLogin" class="space-y-4">
+        <div><label class="block text-sm font-semibold text-gray-700">Username</label><input type="text" id="log-user" class="w-full p-2 border rounded focus:ring-2 focus:ring-orchid-cyan outline-none" required></div>
+        <div class="relative">
+          <label class="block text-sm font-semibold text-gray-700">Password</label>
+          <input type="password" id="log-pass" class="w-full p-2 border rounded focus:ring-2 focus:ring-orchid-cyan outline-none" required>
+          <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-8 text-gray-400 hover:text-orchid-teal transition"><i id="eye-icon" class="fa-solid fa-eye"></i></button>
+        </div>
+        <div class="mt-6"><button type="submit" class="w-full py-2 bg-orchid-teal text-white rounded hover:bg-[#005955] font-semibold transition">Masuk</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modalKatalog" class="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 hidden">
+    <div class="bg-orchid-white rounded-xl shadow-xl p-6 w-full max-w-lg overflow-y-auto max-h-[90vh]">
+      <h3 id="modalKatalogTitle" class="text-2xl font-bold mb-4 text-orchid-teal border-b pb-2">Tambah Spesies Anggrek</h3>
+      <form onsubmit="submitForm(event, 'Katalog_Spesies', 'formKatalog')" id="formKatalog" class="space-y-4">
+        <div><label class="block text-sm font-semibold text-gray-700">ID Spesies</label><input type="text" id="k-id" class="w-full p-2 border rounded focus:ring-2 outline-none" placeholder="Misal: AG01" required></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Nama Ilmiah</label><input type="text" id="k-ilmiah" class="w-full p-2 border rounded focus:ring-2 outline-none" placeholder="Misal: Bulbophyllum sp." required></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Habitat Asli</label>
+          <select id="k-habitat" class="w-full p-2 border rounded focus:ring-2 outline-none" required>
+            <option value="Epifit">Epifit</option><option value="Terestrial">Terestrial</option><option value="Litofit">Litofit</option><option value="Saprofit">Saprofit</option>
+          </select></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Deskripsi</label><textarea id="k-desc" class="w-full p-2 border rounded focus:ring-2 outline-none" rows="2" required></textarea></div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fa-solid fa-camera text-orchid-teal"></i> Upload / Ambil Foto Referensi</label>
+          <input type="file" id="k-foto" accept="image/*" class="w-full p-2 border rounded text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+          <p class="text-xs text-gray-500 mt-1 italic">*Bisa pilih dari galeri atau ambil langsung dari kamera HP. Jika mengedit, biarkan kosong jika foto tidak diubah.</p>
+        </div>
+        <div class="flex justify-end space-x-2 mt-6">
+          <button type="button" onclick="closeModal('modalKatalog')" class="px-4 py-2 bg-gray-200 text-gray-800 rounded font-semibold">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-orchid-teal text-white rounded font-semibold">Simpan Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modalRegistrasi" class="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 hidden">
+    <div class="bg-orchid-white rounded-xl shadow-xl p-6 w-full max-w-lg overflow-y-auto max-h-[90vh]">
+      <h3 id="modalRegistrasiTitle" class="text-2xl font-bold mb-4 text-orchid-teal border-b pb-2">Registrasi Individu</h3>
+      <form onsubmit="submitForm(event, 'Registrasi_Individu', 'formRegistrasi')" id="formRegistrasi" class="space-y-4">
+        <div><label class="block text-sm font-semibold text-gray-700">Kode Individu</label><input type="text" id="r-kode" class="w-full p-2 border rounded focus:ring-2 outline-none" placeholder="Misal: 030" required></div>
+        <div><label class="block text-sm font-semibold text-gray-700">ID Spesies (Pilih dari Katalog)</label><select id="r-spesies" class="w-full p-2 border rounded focus:ring-2 outline-none" onchange="autoFillNamaSpesies()" required></select></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Nama Spesies</label><input type="text" id="r-nama" class="w-full p-2 border rounded bg-gray-100 text-gray-500 cursor-not-allowed outline-none font-medium italic" placeholder="Terisi otomatis..." readonly></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Tanggal Pengambilan <span class="font-normal text-xs text-gray-400">(Abaikan jika N/A)</span></label><input type="date" id="r-tgl" class="w-full p-2 border rounded focus:ring-2 outline-none"></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Lokasi Pengambilan</label><input type="text" id="r-asal" class="w-full p-2 border rounded focus:ring-2 outline-none" placeholder="Isi N/A jika tidak diketahui"></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Lokasi Penempatan</label><input type="text" id="r-nursery" class="w-full p-2 border rounded focus:ring-2 outline-none" placeholder="Taman Kehati Sawerigading Wallacea / dll"></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Status Awal</label>
+          <select id="r-kondisi" class="w-full p-2 border rounded focus:ring-2 outline-none" required>
+            <option value="Hidup">Hidup</option><option value="Mati">Mati</option><option value="Keluar">Keluar</option>
+          </select></div>
+        <div class="flex justify-end space-x-2 mt-6">
+          <button type="button" onclick="closeModal('modalRegistrasi')" class="px-4 py-2 bg-gray-200 text-gray-800 rounded font-semibold">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-orchid-teal text-white rounded font-semibold">Simpan Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modalLog" class="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 hidden">
+    <div class="bg-orchid-white rounded-xl shadow-xl p-6 w-full max-w-lg overflow-y-auto max-h-[90vh]">
+      <h3 id="modalLogTitle" class="text-2xl font-bold mb-4 text-orchid-teal border-b pb-2">Log Mutasi & Update Status</h3>
+      <form onsubmit="submitForm(event, 'Log_Mutasi', 'formLog')" id="formLog" class="space-y-4">
+        <div><label class="block text-sm font-semibold text-gray-700">ID Transaksi</label><input type="text" id="l-id" class="w-full p-2 border rounded focus:ring-2 outline-none" required></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Tanggal <span class="font-normal text-xs text-gray-400">(Abaikan jika N/A)</span></label><input type="date" id="l-tgl" class="w-full p-2 border rounded focus:ring-2 outline-none"></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Aktivitas</label>
+          <select id="l-jenis" class="w-full p-2 border rounded focus:ring-2 outline-none" required>
+            <option value="Keluar">Keluar</option><option value="Mati">Mati</option><option value="Masuk">Masuk (Perbanyakan)</option>
+          </select></div>
+        <div><label class="block text-sm font-semibold text-gray-700">ID Spesies</label><select id="l-spesies" class="w-full p-2 border rounded focus:ring-2 outline-none" onchange="generateCheckboxes()" required></select></div>
+        
+        <div class="bg-gray-50 border p-3 rounded h-32 overflow-y-auto">
+          <label class="block text-sm font-semibold text-gray-700 mb-2 border-b pb-1">Pilih Kode Individu (Pilih >1):</label>
+          <div id="checkbox-container" class="grid grid-cols-2 gap-2 text-sm text-gray-700"><span class="text-xs italic text-gray-400">Pilih ID Spesies terlebih dahulu...</span></div>
+        </div>
+
+        <div><label class="block text-sm font-semibold text-gray-700">Keterangan / Tujuan</label><textarea id="l-ket" class="w-full p-2 border rounded focus:ring-2 outline-none" rows="2" placeholder="Ditanam di lokasi reklamasi..." required></textarea></div>
+        <div><label class="block text-sm font-semibold text-gray-700">Nama Petugas (PIC)</label><input type="text" id="l-pic" class="w-full p-2 border rounded focus:ring-2 outline-none" required></div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fa-solid fa-camera text-orchid-teal"></i> Upload / Ambil Foto Dokumentasi</label>
+          <input type="file" id="l-dok" accept="image/*" class="w-full p-2 border rounded text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+          <p class="text-xs text-gray-500 mt-1 italic">*Bisa pilih foto dari galeri atau ambil langsung dari kamera HP.</p>
+        </div>
+        <div class="flex justify-end space-x-2 mt-6">
+          <button type="button" onclick="closeModal('modalLog')" class="px-4 py-2 bg-gray-200 text-gray-800 rounded font-semibold">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-orchid-teal text-white rounded font-semibold">Simpan Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // API SCRIPT URL 
+    // =========================================================================
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyJFiPuuyBNx0KJkKIh-DcO_7Wik_PO2I7G1c8B_tuvFDj6PGAdjXatArqDCxXfhh9bqA/exec';
+    
+    let currentRole = 'Guest';
+    let chartTransaksiInstance = null; let leafletMap = null; let markerGroup = null;
+    let globalKatalog = []; let globalRegistrasi = [];
+    let windowChartSpesiesInstances = [];
+    
+    // Variabel state untuk Edit Form & Caching Data
+    let isEditing = false;
+    let editIdKey = "";
+    let oldFileUrl = "";
+    let currentTableData = { 'Katalog_Spesies': [], 'Registrasi_Individu': [], 'Log_Mutasi': [] };
+    
+    // VARIABEL STATE UNTUK PAGINATION (Pembagian Halaman)
+    let paginationState = {
+        'Katalog_Spesies': { currentPage: 1, rowsPerPage: 10 },
+        'Registrasi_Individu': { currentPage: 1, rowsPerPage: 100 },
+        'Log_Mutasi': { currentPage: 1, rowsPerPage: 100 }
+    };
+
+    // Variabel untuk Log Filter
+    let combinedLogDataGlobal = [];
+    let currentLogYear = new Date().getFullYear();
+    let currentLogMonth = 0; // 0 = Semua Bulan
+
+    // SISTEM CACHE MEMORI PARALEL
+    let dataCache = { katalog: null, registrasi: null, log: null };
+
+    const orchidMarkerIcon = L.divIcon({
+      className: 'custom-orchid-marker',
+      html: `<div class="w-8 h-8 bg-orchid-teal rounded-full border-2 border-white shadow-md flex items-center justify-center text-white"><i class="fa-solid fa-seedling"></i></div>`,
+      iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16]
+    });
+
+    // =========================================================================
+    // CUSTOM UI PENGGANTI ALERT() & CONFIRM() - Desain Elegan
+    // =========================================================================
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      let bgClass = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+      let iconClass = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-circle-exclamation' : 'fa-info-circle');
+      
+      toast.className = `flex items-center text-white px-5 py-3 rounded-md shadow-lg transform transition-all duration-300 translate-x-full opacity-0 ${bgClass}`;
+      toast.innerHTML = `<i class="fa-solid ${iconClass} mr-3 text-xl"></i> <span class="font-medium text-sm">${message}</span>`;
+      
+      container.appendChild(toast);
+      
+      // Animate In
+      setTimeout(() => { toast.classList.remove('translate-x-full', 'opacity-0'); }, 10);
+      
+      // Animate Out & Remove (Otomatis hilang)
+      setTimeout(() => {
+        toast.classList.add('translate-x-full', 'opacity-0');
+        setTimeout(() => { toast.remove(); }, 300);
+      }, 4000);
+    }
+
+    let confirmAction = null;
+    function showConfirm(message, actionCallback) {
+      document.getElementById('custom-confirm-msg').innerText = message;
+      confirmAction = actionCallback;
+      const modal = document.getElementById('custom-confirm');
+      modal.classList.remove('hidden');
+      setTimeout(() => document.getElementById('custom-confirm-box').classList.remove('scale-95'), 10);
+    }
+
+    function closeConfirm() {
+      document.getElementById('custom-confirm-box').classList.add('scale-95');
+      setTimeout(() => {
+        document.getElementById('custom-confirm').classList.add('hidden');
+        confirmAction = null;
+      }, 200);
+    }
+
+    document.getElementById('custom-confirm-btn').addEventListener('click', () => {
+      if (confirmAction) confirmAction();
+      closeConfirm();
+    });
+    // =========================================================================
+
+    async function apiCall(action, params = {}, method = 'GET') {
+      if (!SCRIPT_URL || SCRIPT_URL === 'URL_WEB_APP_GAS_ANDA_DISINI') {
+        showToast("ERROR: SCRIPT_URL belum disetting!", 'error');
+        return null;
+      }
+      try {
+        if (method === 'GET') {
+          let query = new URLSearchParams({ action: action, ...params }).toString();
+          let res = await fetch(`${SCRIPT_URL}?${query}`); return await res.json();
+        } else {
+          let res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: action, ...params }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+          return await res.json();
+        }
+      } catch (err) { console.error(err); showToast("Gagal terhubung ke Database Google.", 'error'); return null; }
+    }
+
+    // EXPORT PDF & CSV DIPERBARUI AGAR MENCETAK SELURUH DATA WALAUPUN TERPOTONG PAGINATION
+    function exportCSV(tableId, sheetName) {
+      let originalPage = paginationState[sheetName].currentPage;
+      let originalRows = paginationState[sheetName].rowsPerPage;
+      paginationState[sheetName].rowsPerPage = 999999;
+      renderTable(currentTableData[sheetName], tableId.replace('data-', 'table-'), sheetName);
+      
+      let table = document.getElementById(tableId); let rows = Array.from(table.querySelectorAll('tr'));
+      let csvContent = rows.map(row => { let cells = Array.from(row.querySelectorAll('th, td:not(:last-child)')); return cells.map(cell => `"${cell.innerText.replace(/"/g, '""')}"`).join(','); }).join('\n');
+      let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); let link = document.createElement("a");
+      if (link.download !== undefined) { let url = URL.createObjectURL(blob); link.setAttribute("href", url); link.setAttribute("download", sheetName + ".csv"); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }
+      
+      paginationState[sheetName].rowsPerPage = originalRows;
+      paginationState[sheetName].currentPage = originalPage;
+      renderTable(currentTableData[sheetName], tableId.replace('data-', 'table-'), sheetName);
+    }
+    
+    function exportPDF(tableId, sheetName) {
+      let originalPage = paginationState[sheetName].currentPage;
+      let originalRows = paginationState[sheetName].rowsPerPage;
+      paginationState[sheetName].rowsPerPage = 999999;
+      renderTable(currentTableData[sheetName], tableId.replace('data-', 'table-'), sheetName);
+
+      const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'pt', 'a4'); doc.setFontSize(16); doc.text("Laporan Data: " + sheetName.replace('_', ' '), 40, 40);
+      doc.autoTable({ html: '#' + tableId, startY: 60, theme: 'grid', styles: { fontSize: 9 }, headStyles: { fillColor: [0, 126, 122] }, margin: { top: 60 }, columns: Array.from(document.getElementById(tableId).querySelectorAll('th')).map((th, i) => ({ header: th.innerText, dataKey: i })).filter(col => col.header.trim() !== '') }); doc.save(sheetName + ".pdf");
+      
+      paginationState[sheetName].rowsPerPage = originalRows;
+      paginationState[sheetName].currentPage = originalPage;
+      renderTable(currentTableData[sheetName], tableId.replace('data-', 'table-'), sheetName);
+    }
+
+    function getBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error); }); }
+
+    function toggleModal(modalId) { document.getElementById(modalId).classList.toggle('hidden'); }
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden');
+        if(modalId === 'modalKatalog') document.getElementById('formKatalog').reset();
+        if(modalId === 'modalRegistrasi') document.getElementById('formRegistrasi').reset();
+        if(modalId === 'modalLog') { document.getElementById('formLog').reset(); document.getElementById('checkbox-container').innerHTML = ''; }
+        resetModals();
+    }
+    function openAddModal(modalId) { resetModals(); toggleModal(modalId); }
+    
+    function resetModals() {
+        isEditing = false; editIdKey = ""; oldFileUrl = "";
+        document.getElementById('k-id').readOnly = false;
+        document.getElementById('r-kode').readOnly = false;
+        document.getElementById('l-id').readOnly = false;
+        document.getElementById('modalKatalogTitle').innerText = "Tambah Spesies Anggrek";
+        document.getElementById('modalRegistrasiTitle').innerText = "Registrasi Individu";
+        document.getElementById('modalLogTitle').innerText = "Log Mutasi & Update Status";
+        document.getElementById('r-nama').value = ""; 
+    }
+
+    function togglePasswordVisibility() { const p = document.getElementById('log-pass'), i = document.getElementById('eye-icon'); if (p.type === 'password') { p.type = 'text'; i.classList.replace('fa-eye', 'fa-eye-slash'); } else { p.type = 'password'; i.classList.replace('fa-eye-slash', 'fa-eye'); } }
+    
+    function toggleLoginAction() { 
+      if(currentRole === 'Guest') {
+        openAddModal('modalLogin'); 
+      } else { 
+        currentRole = 'Guest'; 
+        applyRolePermissions(); 
+        showToast("Anda telah berhasil logout.", 'info'); 
+      } 
+    }
+
+    async function handleLoginSubmit(event) {
+      event.preventDefault(); showLoading(true);
+      let user = document.getElementById('log-user').value; let pass = document.getElementById('log-pass').value;
+      let res = await apiCall('verifyLogin', { username: user, password: pass }, 'POST');
+      showLoading(false);
+      if(res && res.success) {
+        currentRole = res.role; applyRolePermissions(); closeModal('modalLogin'); document.getElementById('formLogin').reset();
+        document.getElementById('log-pass').type = 'password'; document.getElementById('eye-icon').className = 'fa-solid fa-eye';
+        showToast("Login sukses! Role: " + currentRole, 'success');
+      } else if (res) { 
+        showToast(res.message || "Gagal Login.", 'error'); 
+      }
+    }
+
+    function applyRolePermissions() {
+      const bk = document.getElementById('btn-add-katalog'), br = document.getElementById('btn-add-registrasi'), bl = document.getElementById('btn-add-log'), bn = document.getElementById('btn-login-nav'), bd = document.getElementById('role-badge');
+      if(currentRole === 'Admin') { bk.style.display = 'inline-flex'; br.style.display = 'inline-flex'; bl.style.display = 'inline-flex'; bn.innerHTML = '<i class="fa-solid fa-sign-out-alt"></i> Logout'; bn.classList.replace('text-orchid-teal', 'text-red-500'); bd.innerText = 'ADMIN'; bd.classList.remove('hidden'); } 
+      else if(currentRole === 'Staff') { bk.style.display = 'none'; br.style.display = 'inline-flex'; bl.style.display = 'inline-flex'; bn.innerHTML = '<i class="fa-solid fa-sign-out-alt"></i> Logout'; bn.classList.replace('text-orchid-teal', 'text-red-500'); bd.innerText = 'STAFF'; bd.classList.remove('hidden'); } 
+      else { bk.style.display = 'none'; br.style.display = 'none'; bl.style.display = 'none'; bn.innerHTML = '<i class="fa-solid fa-sign-in-alt"></i> Login'; bn.classList.replace('text-red-500', 'text-orchid-teal'); bd.classList.add('hidden'); }
+      
+      document.querySelectorAll('.action-btn').forEach(btn => {
+        if(currentRole === 'Admin' || currentRole === 'Staff') btn.classList.remove('hidden');
+        else btn.classList.add('hidden');
+      });
+    }
+
+    function loadDropdownData() {
+      if (!dataCache['katalog'] || !dataCache['registrasi']) return;
+      globalKatalog = [];
+      const katData = dataCache['katalog'];
+      for(let i=1; i<katData.length; i++) { globalKatalog.push({ id: katData[i][0].toString().trim(), nama: katData[i][1].toString().trim() }); }
+      globalRegistrasi = [];
+      const regData = dataCache['registrasi'];
+      for(let i=1; i<regData.length; i++) { globalRegistrasi.push({ kode: regData[i][0], idSpesies: regData[i][1], status: regData[i][5] }); }
+
+      let katOptions = '<option value="">-- Pilih ID Spesies --</option>';
+      globalKatalog.forEach(item => { katOptions += `<option value="${item.id}">${item.id} - ${item.nama}</option>`; });
+      document.getElementById('r-spesies').innerHTML = katOptions; document.getElementById('l-spesies').innerHTML = katOptions;
+    }
+
+    function generateCheckboxes() {
+      const selectedId = document.getElementById('l-spesies').value; const container = document.getElementById('checkbox-container'); container.innerHTML = ''; 
+      if(!selectedId) { container.innerHTML = '<span class="text-xs italic text-gray-400">Pilih ID Spesies terlebih dahulu...</span>'; return; }
+      let filtered = globalRegistrasi.filter(r => r.idSpesies === selectedId && r.status !== 'Mati');
+      if(filtered.length === 0) { container.innerHTML = '<span class="text-xs text-red-500 font-semibold">Tidak ada individu hidup untuk spesies ini.</span>'; return; }
+      filtered.forEach(r => { let lbl = document.createElement('label'); lbl.className = "flex items-center space-x-2 bg-white p-2 border rounded hover:bg-gray-100 cursor-pointer"; lbl.innerHTML = `<input type="checkbox" class="rounded text-orchid-teal focus:ring-orchid-cyan" value="${r.kode}"> <span class="font-semibold">${r.kode}</span>`; container.appendChild(lbl); });
+    }
+
+    function autoFillNamaSpesies() {
+      const selectedId = document.getElementById('r-spesies').value; const fieldNama = document.getElementById('r-nama');
+      if (!selectedId) { fieldNama.value = ''; return; }
+      const item = globalKatalog.find(k => k.id === selectedId);
+      if (item) {
+        let ilmiah = item.nama.split(/\s+/);
+        if(ilmiah.length > 0) {
+          ilmiah[0] = ilmiah[0].charAt(0).toUpperCase() + ilmiah[0].slice(1).toLowerCase();
+          for(let w=1; w<ilmiah.length; w++) ilmiah[w] = ilmiah[w].toLowerCase();
+        }
+        fieldNama.value = ilmiah.join(' ');
+      } else { fieldNama.value = 'Spesies tidak ditemukan'; }
+    }
+
+    function parseCustomDate(dStr) {
+        if(!dStr) return null;
+        let s = dStr.toString().trim();
+        if(s.toLowerCase() === 'n/a' || s === '-') return null; 
+        if(s.includes('/')) {
+            let p = s.split('/');
+            if(p.length >= 3) {
+                let y = p[2] ? p[2].trim() : ""; if(y.length === 2) y = "20" + y; 
+                let m = p[0] ? p[0].trim() : "01"; let dDay = p[1] ? p[1].trim() : "01";
+                if(parseInt(m) > 12) { let temp = m; m = dDay; dDay = temp; }
+                return new Date(`${y}-${m.padStart(2,'0')}-${dDay.padStart(2,'0')}T00:00:00`);
+            }
+        }
+        let d = new Date(s); return isNaN(d.getTime()) ? null : d;
+    }
+
+    function formatForDateInput(dStr) {
+        let d = parseCustomDate(dStr);
+        if (d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+        return ''; 
+    }
+
+    function getYearMonth(dStr) { let d = parseCustomDate(dStr); if (!d) return null; return { year: d.getFullYear(), month: d.getMonth() + 1 }; }
+
+    function initMap() {
+      if(leafletMap) return; leafletMap = L.map('map').setView([-2.5, 118.0], 5); 
+      L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '© Google' }).addTo(leafletMap);
+      markerGroup = L.featureGroup().addTo(leafletMap);
+    }
+
+    function openTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.getElementById(tabId).classList.add('active');
+      document.querySelectorAll('nav button').forEach(btn => { btn.classList.remove('btn-active'); btn.classList.add('btn-inactive'); });
+      document.getElementById('btn-' + tabId).classList.add('btn-active'); document.getElementById('btn-' + tabId).classList.remove('btn-inactive');
+      loadData(tabId); 
+      if(tabId === 'dashboard') setTimeout(() => { if(!leafletMap) initMap(); leafletMap.invalidateSize(); }, 100); 
+    }
+
+    function showLoading(show) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
+
+    async function loadData(tabId, forceRefresh = false) {
+      showLoading(true);
+      if (forceRefresh) {
+        paginationState['Katalog_Spesies'].currentPage = 1;
+        paginationState['Registrasi_Individu'].currentPage = 1;
+        paginationState['Log_Mutasi'].currentPage = 1;
+      }
+      let fetchTasks = []; let taskNames = [];
+
+      if (forceRefresh || !dataCache['katalog']) { fetchTasks.push(apiCall('getTableData', { sheetName: 'Katalog_Spesies' })); taskNames.push('katalog'); }
+      if (forceRefresh || !dataCache['registrasi']) { fetchTasks.push(apiCall('getTableData', { sheetName: 'Registrasi_Individu' })); taskNames.push('registrasi'); }
+      if (forceRefresh || !dataCache['log']) { fetchTasks.push(apiCall('getTableData', { sheetName: 'Log_Mutasi' })); taskNames.push('log'); }
+
+      if (fetchTasks.length > 0) {
+        let results = await Promise.all(fetchTasks);
+        results.forEach((res, i) => { dataCache[taskNames[i]] = res; });
+      }
+      loadDropdownData();
+
+      let regData = dataCache['registrasi']; let rawLogData = dataCache['log']; let combinedLogData = [];
+      
+      if(rawLogData && rawLogData.length > 0) {
+          combinedLogData.push(rawLogData[0]); 
+          let groups = {};
+          if(regData && regData.length > 1) {
+              for(let i=1; i<regData.length; i++) {
+                 let kode = regData[i][0] ? regData[i][0].toString().trim() : "";
+                 let idSpesies = regData[i][1] ? regData[i][1].toString().trim() : "";
+                 let tgl = regData[i][2] ? regData[i][2].toString().trim() : "";
+                 if (!tgl || !idSpesies || tgl.toLowerCase() === 'n/a' || tgl === '-') continue; 
+                 let key = tgl + "_|_" + idSpesies; 
+                 if(!groups[key]) { groups[key] = { tgl: tgl, idSpesies: idSpesies, kodes: [], count: 0 }; }
+                 groups[key].kodes.push(kode); groups[key].count++;
+              }
+          }
+
+          let autoLogs = []; let autoCounter = 1;
+          for(let key in groups) {
+             let g = groups[key];
+             autoLogs.push([ 
+                 "AUTO-" + g.idSpesies + "-" + String(autoCounter++).padStart(2, '0'), 
+                 g.tgl, "Masuk", g.idSpesies, g.kodes.join(", "), g.count, "Registrasi Individu (Otomatis)", "Sistem", "" 
+             ]);
+          }
+
+          let bodyData = rawLogData.slice(1).concat(autoLogs);
+          bodyData.sort((a, b) => {
+              let dateA = parseCustomDate(a[1]); let dateB = parseCustomDate(b[1]);
+              let timeA = dateA ? dateA.getTime() : 0; let timeB = dateB ? dateB.getTime() : 0;
+              return timeB - timeA;
+          });
+          combinedLogData = combinedLogData.concat(bodyData);
+      } else { combinedLogData = rawLogData; }
+
+      combinedLogDataGlobal = combinedLogData; 
+
+      if (tabId === 'dashboard') { let dashData = calculateDashboardData(dataCache['katalog'], dataCache['registrasi'], combinedLogData); renderDashboard(dashData); } 
+      else if (tabId === 'katalog') { renderTable(dataCache['katalog'], 'table-katalog', 'Katalog_Spesies'); } 
+      else if (tabId === 'registrasi') { renderTable(dataCache['registrasi'], 'table-registrasi', 'Registrasi_Individu'); } 
+      else if (tabId === 'log') { initLogFilterUI(); }
+      
+      showLoading(false);
+    }
+
+    function initLogFilterUI() {
+        let years = new Set();
+        for(let i=1; i<combinedLogDataGlobal.length; i++) { let ym = getYearMonth(combinedLogDataGlobal[i][1]); if(ym) years.add(ym.year); }
+        let yearArr = Array.from(years).sort((a,b) => b - a); 
+        if(yearArr.length === 0) yearArr.push(new Date().getFullYear());
+
+        let yearSelect = document.getElementById('logYearFilter'); let currentSelected = yearSelect.value || yearArr[0];
+        yearSelect.innerHTML = '';
+        yearArr.forEach(y => { yearSelect.innerHTML += `<option value="${y}" ${y == currentSelected ? 'selected' : ''}>${y}</option>`; });
+        
+        if (currentLogMonth === null) currentLogMonth = 0;
+        applyLogFilter(currentLogMonth || 0);
+    }
+
+    function renderMonthButtons() {
+        const monthNames = ["Semua Bulan", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        let monthHtml = '';
+        monthNames.forEach((m, idx) => {
+            let isActive = (idx === currentLogMonth) ? 'bg-orchid-teal text-white shadow font-bold' : 'bg-gray-50 text-gray-600 hover:bg-gray-200 font-semibold';
+            monthHtml += `<button onclick="applyLogFilter(${idx})" class="text-left px-4 py-2 rounded-md text-sm transition ${isActive}">${m}</button>`;
+        });
+        document.getElementById('logMonthFilter').innerHTML = monthHtml;
+    }
+
+    function applyLogFilter(monthNum) {
+        currentLogYear = parseInt(document.getElementById('logYearFilter').value);
+        if (monthNum !== undefined && monthNum !== null) { currentLogMonth = monthNum; }
+        renderMonthButtons(); 
+
+        let filteredLog = [combinedLogDataGlobal[0]]; 
+        for(let i=1; i<combinedLogDataGlobal.length; i++) {
+            let ym = getYearMonth(combinedLogDataGlobal[i][1]);
+            if (ym && ym.year === currentLogYear) {
+                if (currentLogMonth === 0 || ym.month === currentLogMonth) { filteredLog.push(combinedLogDataGlobal[i]); }
+            }
+        }
+        paginationState['Log_Mutasi'].currentPage = 1; 
+        renderTable(filteredLog, 'table-log', 'Log_Mutasi');
+    }
+
+    function calculateDashboardData(katData, regData, logData) {
+        let speciesMap = {};
+        if(katData && katData.length > 1) { for(let i=1; i<katData.length; i++) { speciesMap[katData[i][0].toString().trim()] = katData[i][1]; } }
+        let totalHidup = 0; let totalMati = 0; let stokPerSpesies = {}; let activeLocations = {};
+        
+        if(regData && regData.length > 1) {
+            for(let i=1; i<regData.length; i++) {
+                let idSpesies = regData[i][1] ? regData[i][1].toString().trim() : "";
+                let kondisi = regData[i][5] ? regData[i][5].toString().trim().toLowerCase() : "";
+                let lokasiPenempatan = regData[i][4] ? regData[i][4].toString().trim() : "";
+                let namaSpesies = speciesMap[idSpesies] || idSpesies;
+                
+                let words = namaSpesies.split(/\s+/);
+                if(words.length > 0) {
+                    words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
+                    for(let w=1; w<words.length; w++) words[w] = words[w].toLowerCase();
+                    namaSpesies = words.join(' '); 
+                }
+                
+                if(kondisi === 'hidup' || kondisi === 'masuk') {
+                    totalHidup++; stokPerSpesies[namaSpesies] = (stokPerSpesies[namaSpesies] || 0) + 1;
+                    if(lokasiPenempatan && lokasiPenempatan.toLowerCase() !== 'n/a' && lokasiPenempatan !== '-') { activeLocations[lokasiPenempatan] = true; }
+                } else if(kondisi === 'mati') { totalMati++; }
+            }
+        }
+        
+        const locationDict = {
+            "taman kehati": { nama: "Taman Kehati Sawerigading Wallacea", lat: -2.5255708, lng: 121.3473271, desc: "Fasilitas pelestarian dan koleksi anggrek endemik." },
+            "sorowako": { nama: "Nursery Sorowako", lat: -2.5355708, lng: 121.3573271, desc: "Area perawatan bibit anggrek." },
+            "vale": { nama: "PT Vale Indonesia", lat: -2.5255708, lng: 121.3473271, desc: "Area pelestarian anggrek." },
+            "itb": { nama: "Greenhouse ITB", lat: -6.8906, lng: 107.6106, desc: "Pusat penelitian anggrek." },
+            "bumper": { nama: "Bumper (Sorowako)", lat: -2.5450, lng: 121.3400, desc: "Lokasi pengambilan/penempatan." },
+            "puncak pontada": { nama: "Puncak Pontada", lat: -2.5100, lng: 121.3300, desc: "Lokasi perbukitan." },
+            "petea": { nama: "Petea North", lat: -2.5600, lng: 121.3700, desc: "Sektor Petea." }
+        };
+        
+        let mapPoints = []; let addedCoords = new Set();
+        Object.keys(activeLocations).forEach(loc => {
+            let locLower = loc.toLowerCase(); let found = false;
+            for(const key in locationDict) {
+                if(locLower.includes(key)) {
+                    let coordKey = locationDict[key].lat + "," + locationDict[key].lng;
+                    if(!addedCoords.has(coordKey)) {
+                        mapPoints.push({ lokasi: locationDict[key].nama, lat: locationDict[key].lat, lng: locationDict[key].lng, desc: locationDict[key].desc });
+                        addedCoords.add(coordKey);
+                    }
+                    found = true; break;
+                }
+            }
+            if(!found) { mapPoints.push({ lokasi: loc, lat: -2.52 + (Math.random()*0.02), lng: 121.34 + (Math.random()*0.02), desc: "Lokasi Penempatan: " + loc }); }
+        });
+        
+        let logPerBulan = {};
+        if(logData && logData.length > 1) {
+            for(let i=1; i<logData.length; i++) {
+                let d = parseCustomDate(logData[i][1]); if (!d) continue; 
+                let monthYear = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
+                let jenis = logData[i][2] ? logData[i][2].toString().trim().toLowerCase() : "";
+                let jumlah = parseInt(logData[i][5]) || 0;
+                if(!logPerBulan[monthYear]) { logPerBulan[monthYear] = { masuk: 0, keluar: 0, mati: 0 }; }
+                if(logPerBulan[monthYear][jenis] !== undefined) { logPerBulan[monthYear][jenis] += jumlah; }
+            }
+        }
+        return { stokPerSpesies, logPerBulan, totalHidup, totalMati, mapPoints };
+    }
+
+    function renderDashboard(data) {
+      document.getElementById('dash-hidup').innerText = data.totalHidup + " Individu"; 
+      document.getElementById('dash-mati').innerText = data.totalMati + " Individu";
+      if (!leafletMap) initMap(); if (markerGroup) markerGroup.clearLayers();
+      if (!data.mapPoints || data.mapPoints.length === 0) { data.mapPoints = [{ lokasi: "Taman Kehati Sawerigading Wallacea", lat: -2.5255708, lng: 121.3473271, desc: "(Fallback) Menampilkan lokasi utama dikarenakan format nama penempatan belum sesuai." }]; }
+      if (data.mapPoints && data.mapPoints.length > 0) {
+        data.mapPoints.forEach(pt => { let popupHtml = `<div class="text-sm"><h4 class="font-bold text-orchid-teal mb-1">${pt.lokasi}</h4><p class="text-gray-600 leading-relaxed">${pt.desc}</p></div>`; L.marker([pt.lat, pt.lng], {icon: orchidMarkerIcon}).addTo(markerGroup).bindPopup(popupHtml); });
+        if(markerGroup.getLayers().length > 0) leafletMap.fitBounds(markerGroup.getBounds(), { padding: [40, 40], maxZoom: 14 });
+      }
+
+      const speciesLabels = Object.keys(data.stokPerSpesies); const speciesData = Object.values(data.stokPerSpesies);
+      const palette = ['#007e7a', '#00b0f0', '#f59e0b', '#8b5cf6', '#ef4444', '#10b981', '#f97316', '#3b82f6', '#ec4899', '#14b8a6'];
+      const container = document.getElementById('chartSpesiesContainer'); container.innerHTML = ''; 
+      if(windowChartSpesiesInstances && windowChartSpesiesInstances.length > 0) { windowChartSpesiesInstances.forEach(c => c.destroy()); } windowChartSpesiesInstances = [];
+
+      const chunkSize = 5; const numCharts = Math.ceil(speciesLabels.length / chunkSize) || 1; 
+      for(let i=0; i<numCharts; i++) {
+          const start = i * chunkSize; const end = start + chunkSize;
+          const chunkLabels = speciesLabels.slice(start, end); const chunkData = speciesData.slice(start, end);
+          const bgColors = chunkLabels.map((_, idx) => palette[(start + idx) % palette.length]);
+          const canvasId = 'chartSpesies_' + i; const wrapperDiv = document.createElement('div'); wrapperDiv.className = 'relative w-full h-[250px] mb-6'; wrapperDiv.innerHTML = `<canvas id="${canvasId}"></canvas>`; container.appendChild(wrapperDiv);
+          const ctx = document.getElementById(canvasId).getContext('2d');
+          const chartInstance = new Chart(ctx, { type: 'bar', data: { labels: chunkLabels, datasets: [{ label: 'Jumlah Individu', data: chunkData, backgroundColor: bgColors, borderRadius: 4 }] }, options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } }, font: { style: 'italic' } } });
+          windowChartSpesiesInstances.push(chartInstance);
+      }
+
+      const labels = Object.keys(data.logPerBulan).sort(); const ctxTrans = document.getElementById('chartTransaksi').getContext('2d');
+      if (chartTransaksiInstance) chartTransaksiInstance.destroy();
+      chartTransaksiInstance = new Chart(ctxTrans, {
+        type: 'line', data: { labels: labels, datasets: [ { label: 'Masuk', data: labels.map(l => data.logPerBulan[l].masuk), borderColor: '#007e7a', backgroundColor: '#007e7a', fill: false, tension: 0.3 }, { label: 'Keluar', data: labels.map(l => data.logPerBulan[l].keluar), borderColor: '#00b0f0', backgroundColor: '#00b0f0', fill: false, tension: 0.3 }, { label: 'Mati', data: labels.map(l => data.logPerBulan[l].mati), borderColor: '#ef4444', backgroundColor: '#ef4444', fill: false, tension: 0.3 } ] },
+        options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 15 } } } }
+      });
+    }
+
+    function renderTable(data, tbodyId, sheetName) {
+      currentTableData[sheetName] = data; 
+      let colCount = document.querySelectorAll(`#${tbodyId.replace('table-', 'data-')} thead th`).length;
+      let html = '';
+
+      let pageState = paginationState[sheetName];
+      let totalRows = data ? data.length - 1 : 0; 
+      if (totalRows < 0) totalRows = 0;
+      
+      let totalPages = Math.ceil(totalRows / pageState.rowsPerPage) || 1;
+      if (pageState.currentPage > totalPages) pageState.currentPage = totalPages;
+      if (pageState.currentPage < 1) pageState.currentPage = 1;
+
+      if(totalRows <= 0) {
+          html = `<tr><td colspan="${colCount}" class="p-4 text-center text-gray-500">Belum ada data.</td></tr>`;
+      } else {
+        let startIndex = 1 + (pageState.currentPage - 1) * pageState.rowsPerPage;
+        let endIndex = Math.min(startIndex + pageState.rowsPerPage, data.length);
+
+        for(let i = startIndex; i < endIndex; i++) {
+          let rowHtml = "";
+          
+          if (sheetName === 'Katalog_Spesies' || sheetName === 'Registrasi_Individu' || sheetName === 'Log_Mutasi') {
+             rowHtml += `<td class="p-3 text-center font-bold text-gray-600">${i}</td>`;
+          }
+
+          data[i].forEach((cell, index) => {
+            if (sheetName === 'Katalog_Spesies' && index === 2) { return; }
+
+            if((tbodyId === 'table-katalog' && index === 5 && cell) || (tbodyId === 'table-log' && index === 8 && cell)) { 
+               let imgUrl = cell;
+               if (imgUrl.includes('drive.google.com/uc')) {
+                 let match = imgUrl.match(/id=([^&]+)/);
+                 if (match && match[1]) imgUrl = `https://lh3.googleusercontent.com/d/${match[1]}`;
+               }
+               rowHtml += `<td class="p-3"><a href="${cell}" target="_blank" title="Klik untuk lihat gambar penuh"><img src="${imgUrl}" alt="Foto ${data[i][0]}" class="w-24 h-24 md:w-32 md:h-32 object-cover rounded border shadow-sm hover:opacity-80 transition cursor-pointer" loading="lazy"></a></td>`;
+            } else if (tbodyId === 'table-katalog' && index === 1) {
+               let formattedName = cell;
+               if(cell) {
+                 let words = cell.trim().split(/\s+/);
+                 if(words.length > 0) {
+                   words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
+                   for(let w=1; w<words.length; w++) { words[w] = words[w].toLowerCase(); }
+                   formattedName = `<span class="italic font-medium">${words.join(' ')}</span>`;
+                 }
+               }
+               rowHtml += `<td class="p-3">${formattedName}</td>`;
+            } else if ((tbodyId === 'table-registrasi' && index === 5) || (tbodyId === 'table-log' && index === 2)) { 
+               let bg = cell.toLowerCase() === 'hidup' || cell.toLowerCase() === 'masuk' ? 'bg-green-100 text-green-800' : cell.toLowerCase() === 'keluar' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'; 
+               rowHtml += `<td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${bg}">${cell}</span></td>`; 
+            } else { 
+               rowHtml += `<td class="p-3">${cell}</td>`; 
+            }
+            
+            if (sheetName === 'Registrasi_Individu' && index === 1) {
+               let katItem = globalKatalog.find(k => k.id === cell);
+               let namaSpesies = katItem ? katItem.nama : '-';
+               if (katItem) {
+                 let words = namaSpesies.trim().split(/\s+/);
+                 if(words.length > 0) {
+                   words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
+                   for(let w=1; w<words.length; w++) words[w] = words[w].toLowerCase();
+                   namaSpesies = `<span class="italic font-medium">${words.join(' ')}</span>`;
+                 }
+               }
+               rowHtml += `<td class="p-3">${namaSpesies}</td>`;
+            }
+          });
+          
+          let isAutoLog = sheetName === 'Log_Mutasi' && data[i][0] && data[i][0].toString().startsWith('AUTO');
+          if (isAutoLog) {
+             rowHtml += `<td class="p-3 text-center"><span class="text-xs italic text-gray-400 font-semibold" title="Dibuat otomatis oleh sistem dari data Registrasi Individu.">Auto</span></td>`;
+          } else {
+             rowHtml += `<td class="p-3 flex space-x-1 justify-center items-center h-full min-h-[4rem]">
+                <button onclick="openEditModal('${sheetName}', ${i})" class="action-btn hidden text-blue-600 hover:text-blue-800 font-bold text-sm bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded shadow-sm transition whitespace-nowrap" title="Edit"><i class="fa-solid fa-pencil"></i></button>
+                <button onclick="deleteRowData('${sheetName}', '${data[i][0]}')" class="action-btn hidden text-red-600 hover:text-red-800 font-bold text-sm bg-red-50 hover:bg-red-100 px-3 py-2 rounded shadow-sm transition whitespace-nowrap" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+             </td>`;
+          }
+
+          html += `<tr class="border-b hover:bg-gray-100 transition">${rowHtml}</tr>`;
+        }
+      }
+      document.getElementById(tbodyId).innerHTML = html;
+      applyRolePermissions(); 
+      renderPagination(sheetName, tbodyId, totalPages);
+    }
+
+    async function deleteRowData(sheetName, idKey) {
+      if(currentRole === 'Guest') { showToast("Akses Ditolak: Silakan login.", 'error'); return; }
+      if(sheetName === 'Katalog_Spesies' && currentRole === 'Staff') { showToast("Akses Ditolak: Hanya Admin yang dapat menghapus Katalog.", 'error'); return; }
+
+      let confirmMsg = `Peringatan: Apakah Anda yakin ingin menghapus data dengan ID: ${idKey}?\n\nData ini akan terhapus secara permanen dari Spreadsheet Google Anda.`;
+      
+      showConfirm(confirmMsg, async () => {
+        showLoading(true);
+        let delRes = await apiCall('deleteData', { sheetName: sheetName, idKey: idKey }, 'POST');
+        showLoading(false);
+        
+        if (delRes && delRes.message) {
+          showToast(delRes.message, 'success'); 
+          dataCache = { katalog: null, registrasi: null, log: null };
+          loadData(document.querySelector('.tab-content.active').id, true);
+        } else { 
+          showToast("Gagal menghapus data.", 'error'); 
+        }
+      });
+    }
+
+    function renderPagination(sheetName, tbodyId, totalPages) {
+        let pageState = paginationState[sheetName];
+        let container = document.getElementById('pagination-' + sheetName);
+        if(!container) return;
+        
+        let html = '';
+        if (totalPages > 0) {
+            html = `
+                <div class="text-sm text-gray-600 font-semibold">
+                    Halaman ${pageState.currentPage} dari ${totalPages} 
+                    <span class="font-normal text-gray-400 ml-1">(${currentTableData[sheetName].length - 1} data)</span>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="changePage('${sheetName}', '${tbodyId}', ${pageState.currentPage - 1})" 
+                            class="px-3 py-1 bg-orchid-teal text-white hover:bg-[#005955] rounded disabled:opacity-50 disabled:cursor-not-allowed transition shadow" 
+                            ${pageState.currentPage === 1 ? 'disabled' : ''}>
+                        <i class="fa-solid fa-chevron-left text-xs"></i> Prev
+                    </button>
+                    <button onclick="changePage('${sheetName}', '${tbodyId}', ${pageState.currentPage + 1})" 
+                            class="px-3 py-1 bg-orchid-teal text-white hover:bg-[#005955] rounded disabled:opacity-50 disabled:cursor-not-allowed transition shadow" 
+                            ${pageState.currentPage === totalPages ? 'disabled' : ''}>
+                        Next <i class="fa-solid fa-chevron-right text-xs"></i>
+                    </button>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    }
+
+    function changePage(sheetName, tbodyId, newPage) {
+        paginationState[sheetName].currentPage = newPage;
+        renderTable(currentTableData[sheetName], tbodyId, sheetName);
+    }
+
+    function openEditModal(sheetName, rowIndex) {
+      isEditing = true;
+      let row = currentTableData[sheetName][rowIndex];
+      editIdKey = row[0]; 
+
+      if (sheetName === 'Katalog_Spesies') {
+          document.getElementById('k-id').value = row[0]; document.getElementById('k-id').readOnly = true; 
+          let tempDiv = document.createElement("div"); tempDiv.innerHTML = row[1];
+          document.getElementById('k-ilmiah').value = tempDiv.innerText || tempDiv.textContent; 
+          document.getElementById('k-lokal').value = row[2]; document.getElementById('k-habitat').value = row[3]; document.getElementById('k-desc').value = row[4]; oldFileUrl = row[5];
+          document.getElementById('modalKatalogTitle').innerText = "Edit Spesies Anggrek";
+          toggleModal('modalKatalog');
+      } else if (sheetName === 'Registrasi_Individu') {
+          document.getElementById('r-kode').value = row[0]; document.getElementById('r-kode').readOnly = true; document.getElementById('r-spesies').value = row[1];
+          autoFillNamaSpesies();
+          document.getElementById('r-tgl').value = formatForDateInput(row[2]);
+          document.getElementById('r-asal').value = row[3]; document.getElementById('r-nursery').value = row[4]; document.getElementById('r-kondisi').value = row[5];
+          document.getElementById('modalRegistrasiTitle').innerText = "Edit Registrasi Individu";
+          toggleModal('modalRegistrasi');
+      } else if (sheetName === 'Log_Mutasi') {
+          document.getElementById('l-id').value = row[0]; document.getElementById('l-id').readOnly = true;
+          document.getElementById('l-tgl').value = formatForDateInput(row[1]);
+          document.getElementById('l-jenis').value = row[2]; document.getElementById('l-spesies').value = row[3];
+          generateCheckboxes(); 
+          setTimeout(() => { 
+              let kodes = row[4].split(',').map(s => s.trim());
+              document.querySelectorAll('#checkbox-container input[type="checkbox"]').forEach(cb => { if(kodes.includes(cb.value)) cb.checked = true; });
+          }, 100);
+          document.getElementById('l-ket').value = row[6]; document.getElementById('l-pic').value = row[7]; oldFileUrl = row[8];
+          document.getElementById('modalLogTitle').innerText = "Edit Log Mutasi";
+          toggleModal('modalLog');
+      }
+    }
+
+    async function submitForm(event, sheetName, formId) {
+      event.preventDefault();
+      if(currentRole === 'Guest') { showToast("Akses Ditolak: Silakan login.", 'error'); return; }
+      if(sheetName === 'Katalog_Spesies' && currentRole === 'Staff') { showToast("Akses Ditolak: Hanya Admin yang dapat mengubah Katalog.", 'error'); return; }
+
+      showLoading(true);
+      let fileUrl = ""; let fileInput = sheetName === 'Katalog_Spesies' ? document.getElementById('k-foto') : sheetName === 'Log_Mutasi' ? document.getElementById('l-dok') : null;
+
+      if(fileInput && fileInput.files.length > 0) {
+        try {
+          let base64 = await getBase64(fileInput.files[0]);
+          let uploadRes = await apiCall('uploadToDrive', { base64Data: base64, filename: fileInput.files[0].name }, 'POST');
+          if (uploadRes && uploadRes.url) fileUrl = uploadRes.url;
+        } catch(e) { showToast("Gagal mengupload gambar.", 'error'); }
+      } else {
+        if (isEditing) fileUrl = oldFileUrl; 
+      }
+
+      let rowData = [];
+      if(sheetName === 'Katalog_Spesies') { 
+          rowData = [ document.getElementById('k-id').value, document.getElementById('k-ilmiah').value, "N/A", document.getElementById('k-habitat').value, document.getElementById('k-desc').value, fileUrl ]; 
+      } 
+      else if (sheetName === 'Registrasi_Individu') { 
+          let tglVal = document.getElementById('r-tgl').value;
+          rowData = [ document.getElementById('r-kode').value, document.getElementById('r-spesies').value, tglVal ? tglVal : "N/A", document.getElementById('r-asal').value || "N/A", document.getElementById('r-nursery').value || "N/A", document.getElementById('r-kondisi').value ]; 
+      } 
+      else if (sheetName === 'Log_Mutasi') {
+        let checkboxes = document.querySelectorAll('#checkbox-container input[type="checkbox"]:checked');
+        if(checkboxes.length === 0) { showToast("Pilih minimal 1 Kode Individu!", 'error'); showLoading(false); return; }
+        let selectedKodes = Array.from(checkboxes).map(cb => cb.value).join(', ');
+        let tglVal = document.getElementById('l-tgl').value;
+        rowData = [ document.getElementById('l-id').value, tglVal ? tglVal : "N/A", document.getElementById('l-jenis').value, document.getElementById('l-spesies').value, selectedKodes, checkboxes.length, document.getElementById('l-ket').value, document.getElementById('l-pic').value, fileUrl ];
+      }
+
+      let actionName = isEditing ? 'editData' : 'addData';
+      let saveRes = await apiCall(actionName, { sheetName: sheetName, rowData: rowData, idKey: editIdKey }, 'POST');
+      showLoading(false);
+      
+      if (saveRes && saveRes.message) {
+        if (saveRes.message.startsWith("ERROR:")) {
+            showToast(saveRes.message.replace("ERROR:", "").trim(), 'error');
+        } else {
+            showToast(saveRes.message, 'success'); 
+            closeModal('modal' + sheetName.split('_')[0]); 
+            dataCache = { katalog: null, registrasi: null, log: null };
+            loadData(document.querySelector('.tab-content.active').id, true);
+        }
+      } else { showToast("Gagal menyimpan data.", 'error'); }
+    }
+
+    let currentSlide = 0; let slideInterval;
+    function initCarousel() { showSlide(currentSlide); startSlideShow(); }
+    function showSlide(index) { const slides = document.querySelectorAll('.carousel-item'); const dots = document.querySelectorAll('.carousel-dot'); if(slides.length === 0) return; if(index >= slides.length) currentSlide = 0; else if(index < 0) currentSlide = slides.length - 1; else currentSlide = index; slides.forEach((slide, i) => { slide.classList.remove('opacity-100', 'z-10'); slide.classList.add('opacity-0', 'z-0'); dots[i].classList.replace('bg-white', 'bg-white/40'); }); slides[currentSlide].classList.remove('opacity-0', 'z-0'); slides[currentSlide].classList.add('opacity-100', 'z-10'); dots[currentSlide].classList.replace('bg-white/40', 'bg-white'); }
+    function nextSlide(e) { if(e) e.stopPropagation(); showSlide(currentSlide + 1); resetSlideShow(); }
+    function prevSlide(e) { if(e) e.stopPropagation(); showSlide(currentSlide - 1); resetSlideShow(); }
+    function goToSlide(index, e) { if(e) e.stopPropagation(); showSlide(index); resetSlideShow(); }
+    function startSlideShow() { slideInterval = setInterval(() => { nextSlide(); }, 5000); }
+    function resetSlideShow() { clearInterval(slideInterval); startSlideShow(); }
+
+    window.onload = async () => { 
+        applyRolePermissions(); 
+        initMap(); 
+        initCarousel(); 
+        await loadData('dashboard'); 
+    }
+  </script>
+</body>
+</html>
