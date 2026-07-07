@@ -389,7 +389,7 @@
     // =========================================================================
     // API SCRIPT URL - GANTI DENGAN URL DEPLOYMENT ANDA YANG BARU!
     // =========================================================================
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzWzj3CbKwtv0A43GyM-CryZfET97p2mJ89L-hIP4_bNF3efOwAYMaoNNeGVyUK_NWSKQ/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxZ0RZNzmuV6JrmBPo-64pZQQorLycgzpP6HK2qtu7Y_j5GHkMBZ9rTzkLZeLlyOCJgEA/exec';
     
     let currentRole = 'Guest';
     let chartTransaksiInstance = null; let leafletMap = null; let markerGroup = null;
@@ -617,12 +617,19 @@
 
     function loadDropdownData() {
       if (!dataCache['katalog'] || !dataCache['registrasi']) return;
+      
       globalKatalog = [];
       const katData = dataCache['katalog'];
-      for(let i=1; i<katData.length; i++) { globalKatalog.push({ id: katData[i][0].toString().trim(), nama: katData[i][1].toString().trim() }); }
+      for(let i=1; i<katData.length; i++) {
+        // Ambil murni Nama Ilmiah, abaikan Nama Lokal
+        globalKatalog.push({ id: katData[i][0].toString().trim(), nama: katData[i][1].toString().trim() });
+      }
+      
       globalRegistrasi = [];
       const regData = dataCache['registrasi'];
-      for(let i=1; i<regData.length; i++) { globalRegistrasi.push({ kode: regData[i][0], idSpesies: regData[i][1], status: regData[i][5] }); }
+      for(let i=1; i<regData.length; i++) {
+        globalRegistrasi.push({ kode: regData[i][0], idSpesies: regData[i][1], status: regData[i][5] });
+      }
 
       let katOptions = '<option value="">-- Pilih ID Spesies --</option>';
       globalKatalog.forEach(item => { katOptions += `<option value="${item.id}">${item.id} - ${item.nama}</option>`; });
@@ -632,7 +639,10 @@
     function generateCheckboxes() {
       const selectedId = document.getElementById('l-spesies').value; const container = document.getElementById('checkbox-container'); container.innerHTML = ''; 
       if(!selectedId) { container.innerHTML = '<span class="text-xs italic text-gray-400">Pilih ID Spesies terlebih dahulu...</span>'; return; }
-      let filtered = globalRegistrasi.filter(r => r.idSpesies === selectedId && r.status !== 'Mati');
+      
+      // PERBAIKAN: Menyaring agar individu berstatus 'Mati' atau 'Keluar' tidak muncul lagi di pilihan
+      let filtered = globalRegistrasi.filter(r => r.idSpesies === selectedId && r.status.toLowerCase() !== 'mati' && r.status.toLowerCase() !== 'keluar');
+      
       if(filtered.length === 0) { container.innerHTML = '<span class="text-xs text-red-500 font-semibold">Tidak ada individu hidup untuk spesies ini.</span>'; return; }
       filtered.forEach(r => { let lbl = document.createElement('label'); lbl.className = "flex items-center space-x-2 bg-white p-2 border rounded hover:bg-gray-100 cursor-pointer"; lbl.innerHTML = `<input type="checkbox" class="rounded text-orchid-teal focus:ring-orchid-cyan" value="${r.kode}"> <span class="font-semibold">${r.kode}</span>`; container.appendChild(lbl); });
     }
@@ -1008,11 +1018,16 @@
         showLoading(false);
         
         if (delRes && delRes.message) {
-          showToast(delRes.message, 'success'); 
-          dataCache = { katalog: null, registrasi: null, log: null };
-          loadData(document.querySelector('.tab-content.active').id, true);
+          // Tangkap pesan Error dari Backend agar notifikasi berwarna merah
+          if (delRes.message.toString().includes("ERROR")) {
+              showToast(delRes.message, 'error');
+          } else {
+              showToast(delRes.message, 'success'); 
+              dataCache = { katalog: null, registrasi: null, log: null };
+              loadData(document.querySelector('.tab-content.active').id, true);
+          }
         } else { 
-          showToast("Gagal menghapus data.", 'error'); 
+          showToast("Gagal terhubung dengan server Google.", 'error'); 
         }
       });
     }
